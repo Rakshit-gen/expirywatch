@@ -11,6 +11,9 @@ import os
 import re
 
 from .leadtime import LEAD_TIMES_DAYS
+from .plugins import register_extractor
+
+_ISO_DATE_PATTERN = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
 
 _TYPE_KEYWORDS = {
     "passport": ["passport"],
@@ -85,13 +88,28 @@ def _llm_extract(text: str) -> tuple[str, str] | None:
     return None
 
 
-def extract(text: str) -> tuple[str, str] | None:
-    """Return (doc_type, expiry_date_iso), or None if no date could be found."""
-    llm_result = _llm_extract(text)
-    if llm_result:
-        return llm_result
-
+@register_extractor("regex")
+def regex_extract(text: str) -> tuple[str, str] | None:
+    """Keyword + regex only, no LLM call even if a key is set. Fast, offline, handles common phrasing."""
     date = _guess_date(text)
     if not date:
         return None
     return _guess_type(text), date
+
+
+@register_extractor("strict-iso")
+def strict_iso_extract(text: str) -> tuple[str, str] | None:
+    """Only matches exact YYYY-MM-DD dates. For already-structured input (CSV dumps, forms)."""
+    match = _ISO_DATE_PATTERN.search(text)
+    if not match:
+        return None
+    return _guess_type(text), match.group(1)
+
+
+@register_extractor("hybrid")
+def extract(text: str) -> tuple[str, str] | None:
+    """LLM first if ANTHROPIC_API_KEY is set (handles odd phrasing/unlisted types), else regex fallback."""
+    llm_result = _llm_extract(text)
+    if llm_result:
+        return llm_result
+    return regex_extract(text)
