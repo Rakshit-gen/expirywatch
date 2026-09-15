@@ -58,6 +58,58 @@ Renewal window is open (lead time: 14d).
 | generic (unrecognized type) | 14 days |
 | warranty / subscription | 7 days |
 
+## Custom lead times
+
+Add or override lead times without touching code, via a JSON policy file:
+
+```bash
+echo '{"gym_membership": 3}' > ~/.expirywatch_policy.json
+expirywatch add --type gym_membership --expires 2026-10-01
+```
+
+Looked up from `--policy PATH`, then `$EXPIRYWATCH_POLICY`, then
+`~/.expirywatch_policy.json`, merged over the built-in table.
+
+## Extending
+
+The extractor, drafter, and notifier are plugins, picked by name:
+
+```bash
+expirywatch --list-plugins
+# extractors: hybrid, regex, strict-iso
+# drafters:   hybrid, minimal, template
+# notifiers:  console, webhook
+
+expirywatch --extractor regex --drafter minimal --notifier webhook check
+```
+
+`webhook` posts `{"title", "message"}` as JSON to `$EXPIRYWATCH_WEBHOOK_URL`
+(a Slack incoming webhook, ntfy.sh, whatever takes a JSON POST).
+
+Register your own before building the graph:
+
+```python
+from expirywatch.plugins import register_extractor, register_drafter, register_notifier
+
+@register_extractor("my-extractor")
+def my_extractor(text):
+    ...
+    return (doc_type, expiry_date_iso)  # or None
+
+@register_drafter("my-drafter")
+def my_drafter(doc_type, days_until_expiry):
+    ...
+    return ["step one", "step two"]
+
+@register_notifier("my-notifier")
+def my_notifier(title, message):
+    ...
+```
+
+Then pass `--extractor my-extractor` / `--drafter my-drafter` /
+`--notifier my-notifier` on the CLI, or the matching keyword to `build_graph()`
+directly.
+
 ## Test it yourself
 
 ```bash
