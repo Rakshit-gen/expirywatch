@@ -4,7 +4,10 @@ from __future__ import annotations
 import subprocess
 import sys
 
+from .plugins import register_notifier
 
+
+@register_notifier("console")
 def notify(title: str, message: str) -> None:
     print(f"\n[{title}]\n{message}")
 
