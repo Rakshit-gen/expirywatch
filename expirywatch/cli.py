@@ -5,6 +5,8 @@ import datetime
 import sys
 
 from .graph import build_graph
+from .leadtime import load_policy
+from .plugins import DRAFTERS, EXTRACTORS, NOTIFIERS
 from .store import add_document, connect, list_documents, mark_notified
 
 
@@ -12,9 +14,18 @@ def _today(args: argparse.Namespace) -> str:
     return args.today or datetime.date.today().isoformat()
 
 
+def _build_graph(args: argparse.Namespace):
+    return build_graph(
+        extractor=args.extractor,
+        drafter=args.drafter,
+        notifier=args.notifier,
+        policy=load_policy(args.policy),
+    )
+
+
 def cmd_add(args: argparse.Namespace) -> int:
     conn = connect()
-    graph = build_graph()
+    graph = _build_graph(args)
     result = graph.invoke({"doc_type": args.type, "expiry_date": args.expires, "today": args.today})
     doc_id = add_document(conn, args.type, args.expires, source="manual")
     if result.get("due"):
@@ -25,7 +36,7 @@ def cmd_add(args: argparse.Namespace) -> int:
 
 def cmd_scan(args: argparse.Namespace) -> int:
     text = open(args.file).read()
-    graph = build_graph()
+    graph = _build_graph(args)
     result = graph.invoke({"raw_text": text, "today": args.today})
     if not result.get("expiry_date"):
         print("Could not find a date in that text.", file=sys.stderr)
@@ -41,7 +52,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
 def cmd_check(args: argparse.Namespace) -> int:
     conn = connect()
-    graph = build_graph()
+    graph = _build_graph(args)
     due_count = 0
     for doc in list_documents(conn, only_unnotified=True):
         result = graph.invoke(
@@ -66,7 +77,12 @@ def cmd_list(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="expirywatch", description="Type-aware deadline tracking for real-world documents.")
     parser.add_argument("--today", help=argparse.SUPPRESS)  # override for testing
-    sub = parser.add_subparsers(dest="command", required=True)
+    parser.add_argument("--extractor", default="hybrid", choices=sorted(EXTRACTORS), help="default: hybrid")
+    parser.add_argument("--drafter", default="hybrid", choices=sorted(DRAFTERS), help="default: hybrid")
+    parser.add_argument("--notifier", default="console", choices=sorted(NOTIFIERS), help="default: console")
+    parser.add_argument("--policy", help="JSON file of {doc_type: lead_time_days} overrides")
+    parser.add_argument("--list-plugins", action="store_true", help="list registered extractors/drafters/notifiers and exit")
+    sub = parser.add_subparsers(dest="command")
 
     p_add = sub.add_parser("add", help="track a document directly")
     p_add.add_argument("--type", required=True, help="e.g. passport, visa, drivers_license, insurance, warranty")
@@ -84,6 +100,16 @@ def main(argv: list[str] | None = None) -> int:
     p_list.set_defaults(func=cmd_list)
 
     args = parser.parse_args(argv)
+
+    if args.list_plugins:
+        print("extractors:", ", ".join(sorted(EXTRACTORS)))
+        print("drafters:  ", ", ".join(sorted(DRAFTERS)))
+        print("notifiers: ", ", ".join(sorted(NOTIFIERS)))
+        return 0
+
+    if not args.command:
+        parser.error("a command is required (add/scan/check/list)")
+
     return args.func(args)
 
 
