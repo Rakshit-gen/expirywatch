@@ -69,6 +69,30 @@ def test_minimal_drafter_is_a_single_line():
     assert len(DRAFTERS["minimal"]("passport", 30)) == 1
 
 
+def test_custom_policy_overrides_lead_time_routing():
+    app = build_graph(policy={"gym_membership": 2, "generic": 14})
+    # 5 days out, 2-day custom lead time: not due yet.
+    not_due = app.invoke({"doc_type": "gym_membership", "expiry_date": "2026-09-21", "today": "2026-09-16"})
+    assert not_due["due"] is False
+    # 1 day out, 2-day custom lead time: due.
+    due = app.invoke({"doc_type": "gym_membership", "expiry_date": "2026-09-17", "today": "2026-09-16"})
+    assert due["due"] is True
+
+
+def test_custom_notifier_can_be_registered_and_used():
+    from expirywatch.plugins import register_notifier
+
+    calls = []
+
+    @register_notifier("capture")
+    def _capture(title, message):
+        calls.append((title, message))
+
+    app = build_graph(notifier="capture")
+    app.invoke({"doc_type": "insurance", "expiry_date": "2026-09-20", "today": "2026-09-16"})
+    assert len(calls) == 1
+
+
 if __name__ == "__main__":
     tests = [v for k, v in list(globals().items()) if k.startswith("test_")]
     for t in tests:
