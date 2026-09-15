@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import os
 
+from .plugins import register_drafter
+
 _TEMPLATES = {
     "passport": [
         "Check passport photo and validity requirements for your destination country",
@@ -72,5 +74,19 @@ def _llm_draft(doc_type: str, days_until_expiry: int) -> list[str] | None:
         return None
 
 
+@register_drafter("minimal")
+def minimal_draft(doc_type: str, days_until_expiry: int) -> list[str]:
+    """One line, no template lookup, no LLM. For when you just want the ping."""
+    return [f"Renew {doc_type} within {days_until_expiry} days, contact the issuing provider."]
+
+
+@register_drafter("template")
+def template_draft(doc_type: str, days_until_expiry: int) -> list[str]:
+    """Static per-doc-type checklist, no LLM call even if a key is set."""
+    return _TEMPLATES.get(doc_type, _TEMPLATES["generic"])
+
+
+@register_drafter("hybrid")
 def draft_checklist(doc_type: str, days_until_expiry: int) -> list[str]:
-    return _llm_draft(doc_type, days_until_expiry) or _TEMPLATES.get(doc_type, _TEMPLATES["generic"])
+    """LLM-tailored checklist if ANTHROPIC_API_KEY is set, else the static template."""
+    return _llm_draft(doc_type, days_until_expiry) or template_draft(doc_type, days_until_expiry)
