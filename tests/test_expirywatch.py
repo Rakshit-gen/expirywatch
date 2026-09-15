@@ -8,6 +8,7 @@ from expirywatch.draft import draft_checklist
 from expirywatch.extract import extract
 from expirywatch.graph import build_graph
 from expirywatch.leadtime import is_due, lead_time_for
+from expirywatch.plugins import DRAFTERS, EXTRACTORS, NOTIFIERS
 
 
 def test_passport_needs_longer_lead_time_than_insurance():
@@ -51,6 +52,21 @@ def test_graph_skips_draft_for_item_not_yet_due():
     result = app.invoke({"doc_type": "passport", "expiry_date": "2027-09-20", "today": "2026-09-16"})
     assert result["due"] is False
     assert "checklist" not in result
+
+
+def test_builtin_plugins_are_registered():
+    assert {"regex", "strict-iso", "hybrid"} <= set(EXTRACTORS)
+    assert {"minimal", "template", "hybrid"} <= set(DRAFTERS)
+    assert {"console", "webhook"} <= set(NOTIFIERS)
+
+
+def test_strict_iso_extractor_ignores_fuzzy_dates():
+    assert EXTRACTORS["strict-iso"]("insurance due 2026-09-20") == ("insurance", "2026-09-20")
+    assert EXTRACTORS["strict-iso"]("insurance due March 20, 2026") is None
+
+
+def test_minimal_drafter_is_a_single_line():
+    assert len(DRAFTERS["minimal"]("passport", 30)) == 1
 
 
 if __name__ == "__main__":
