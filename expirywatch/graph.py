@@ -51,6 +51,8 @@ def build_graph(extractor: str = "hybrid", drafter: str = "hybrid", notifier: st
 
     def node_leadtime(state: State) -> dict:
         days = lead_times.get(state["doc_type"], lead_times.get("generic", 14))
+        if not state.get("expiry_date"):
+            return {"lead_time_days": days, "due": False}
         due = is_due(state["expiry_date"], days, state.get("today"))
         return {"lead_time_days": days, "due": due}
 
