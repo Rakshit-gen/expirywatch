@@ -35,7 +35,8 @@ def cmd_add(args: argparse.Namespace) -> int:
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
-    text = open(args.file).read()
+    with open(args.file) as f:
+        text = f.read()
     graph = _build_graph(args)
     result = graph.invoke({"raw_text": text, "today": args.today})
     if not result.get("expiry_date"):
