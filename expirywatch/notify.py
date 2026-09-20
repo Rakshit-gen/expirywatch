@@ -15,7 +15,7 @@ def notify(title: str, message: str) -> None:
     print(f"\n[{title}]\n{message}")
 
     if sys.platform == "darwin":
-        script = f'display notification {message!r} with title {title!r}'
+        script = f"display notification {json.dumps(message)} with title {json.dumps(title)}"
         try:
             subprocess.run(["osascript", "-e", script], capture_output=True, timeout=5)
         except (OSError, subprocess.TimeoutExpired):
